@@ -41,7 +41,7 @@ class Encoder(nn.Module):
         self.lin2 = nn.Linear(hidden_dim, hidden_dim)
 
         # Fully connected layers for mean and variance
-        self.mu_logvar_gen = nn.Linear(hidden_dim, 2 * n_features)
+        self.mu_logvar_gen = nn.Linear(hidden_dim, n_features)
 
         self.activation = torch.nn.GELU()
 
@@ -61,6 +61,5 @@ class Encoder(nn.Module):
 
         # Fully connected layer for log variance and mean
         mean_log_var = self.mu_logvar_gen(x)
-        mean, log_var = mean_log_var.view(-1, self.n_features, 2).unbind(-1)
 
-        return mean, log_var
+        return mean_log_var

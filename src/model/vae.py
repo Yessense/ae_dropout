@@ -17,43 +17,10 @@ class VAE(nn.Module):
         self.encoder = Encoder(image_size=image_size, n_features=n_features)
         self.decoder = Decoder(image_size, latent_dim)
 
-    def reparameterize(self, mean, logvar):
-        """
-
-        Parameters
-        ----------
-        mu: torch.Tensor
-            Mean of the normal distribution. Shape (batch_size, latent_dim)
-
-        logvar: torch.Tensor
-            Diagonal log variance of the normal distribution.
-            Shape (batch_size, latent_dim)
-
-        """
-
-        if self.training:
-            std = torch.exp(0.5 * logvar)
-            eps = torch.randn_like(std)
-            return mean + std * eps
-        else:
-            return mean
-
     def get_latent_vector(self, x):
-        """
-        Returns a sample from the latent distribution.
-
-        Parameters
-        ----------
-        x: torch.Tensor
-            Batch of data. Shape (batch_size, n_channels, height, width)
-        """
-
-        mean, log_var = self.encoder(x)
-        latent_sample = self.reparameterize(mean, log_var)
-        return latent_sample
+        return self.encoder(x)
 
     def decode_latent(self, x):
-        # (batch_size, latent_dim) -> (batch_size, 1, 64, 64)
         return self.decoder(x)
 
     def latent_operations(self, x1, x2, properties: List[bool]):
@@ -70,9 +37,8 @@ class VAE(nn.Module):
         return out
 
     def forward(self, x):
-        mean, log_var = self.encoder(x)
-        z = self.reparameterize(mean, log_var)
+        x = self.encoder(x)
 
-        reconstruction = self.decoder(z)
+        reconstruction = self.decoder(x)
 
-        return reconstruction, mean, log_var
+        return reconstruction

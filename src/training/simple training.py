@@ -18,29 +18,22 @@ from src.utils.dataset import get_dataloader
 np.set_printoptions(suppress=True)
 
 
-def kld_loss(mean, log_var):
-    loss = - 0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
-    return loss
-
-
 def bce_loss(x, reconstruction):
     loss = torch.nn.BCELoss(reduction='sum')
     return loss(reconstruction, x)
 
 
-def vae_loss(images_true, images_pred,
-             mean, log_var, beta = 1):
+def vae_loss(images_true, images_pred):
     bce = bce_loss(images_true, images_pred)
-    kld = kld_loss(mean, log_var)
 
-    return bce + beta * kld, bce, beta * kld
+    return bce
 
 
 def train_model(autoencoder, optimizer, criterion, dataloader, epochs, device):
     logging.info(f'Start training')
 
     n_batches = len(dataloader)
-    n_losses = 3
+    n_losses = 1
 
     train_losses = np.zeros((n_epochs, n_losses))
 
@@ -59,16 +52,14 @@ def train_model(autoencoder, optimizer, criterion, dataloader, epochs, device):
             optimizer.zero_grad()
 
             # Forward pass
-            images_pred, mean, log_var, = autoencoder(images_batch)
+            images_pred = autoencoder(images_batch)
 
             # Loss
+            loss = criterion(images_true=images_batch, images_pred=images_pred)
+            loss.backward()
 
-            loss = criterion(images_true=images_batch, images_pred=images_pred,
-                             mean=mean, log_var=log_var)
 
-            loss[0].backward()
-            for l in range(n_losses):
-                train_losses_per_epoch[l] = loss[l].item()
+            train_losses_per_epoch[0] = loss.item()
 
             optimizer.step()
         print(f'\n{train_losses_per_epoch}')
@@ -81,7 +72,7 @@ def look_on_results(autoencoder, dataloader, device, n_to_show=6):
     autoencoder.eval()
     with torch.no_grad():
         for images_batch, parameters_batch in dataloader:
-            reconstruction, mean, log_var = autoencoder(images_batch.to(device))
+            reconstruction = autoencoder(images_batch.to(device))
             result = reconstruction.cpu().detach().numpy()
             ground_truth = images_batch.numpy()
             break
@@ -100,8 +91,8 @@ def save_model(autoencoder: VAE, path: str = './model.pt') -> None:
     torch.save(autoencoder.state_dict(), path)
 
 
-def load_model(path: str = './model.pt', latent_dim: int = 5) -> VAE:
-    model: VAE = VAE(latent_dim=latent_dim)
+def load_model(path: str = './model.pt', latent_dim: int = 5, n_features: int = 5) -> VAE:
+    model: VAE = VAE(latent_dim=latent_dim, n_features=n_features)
     model.load_state_dict(torch.load(path))
     return model
 
@@ -168,12 +159,12 @@ if __name__ == '__main__':
     # ------------------------------------------------------------
     # train
     # ------------------------------------------------------------
-    logging.info(f'Setting up dataloader')
-    # dataloader = get_dataloader('dsprites', batch_size=batch_size)
     #
     autoencoder = load_model(latent_dim=latent_dim) if RESUME_TRAINING else VAE(latent_dim=latent_dim, n_features=5)
     autoencoder = autoencoder.to(device)
-    #
+
+    # logging.info(f'Setting up dataloader')
+    # dataloader = get_dataloader('dsprites', batch_size=batch_size)
     # optimizer = torch.optim.Adam(autoencoder.parameters(), lr=lr)
     # criterion = vae_loss
     #
