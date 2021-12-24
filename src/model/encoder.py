@@ -7,7 +7,7 @@ from torch import nn
 
 
 class Encoder(nn.Module):
-    def __init__(self, image_size: Tuple[int, int, int] = (1, 64, 64), n_features=5):
+    def __init__(self, image_size: Tuple[int, int, int] = (1, 64, 64), latent_dim: int = 1024, n_features=5):
         super(Encoder, self).__init__()
         """
         Color: white
@@ -17,12 +17,12 @@ class Encoder(nn.Module):
         Position X: 32 values in [0, 1]
         Position Y: 32 values in [0, 1]
         """
-
         # Layer parameters
         hidden_channels = 32
         kernel_size = 4
         hidden_dim = 256
 
+        self.latent_dim = latent_dim
         self.n_features = n_features
         self.image_size = image_size
         self.reshape = (hidden_channels, kernel_size, kernel_size)
@@ -41,7 +41,7 @@ class Encoder(nn.Module):
         self.lin2 = nn.Linear(hidden_dim, hidden_dim)
 
         # Fully connected layers for mean and variance
-        self.mu_logvar_gen = nn.Linear(hidden_dim, n_features)
+        self.latent_layer = nn.Linear(hidden_dim, self.n_features * self.latent_dim)
 
         self.activation = torch.nn.GELU()
 
@@ -60,6 +60,17 @@ class Encoder(nn.Module):
         x = self.activation(self.lin2(x))
 
         # Fully connected layer for log variance and mean
-        mean_log_var = self.mu_logvar_gen(x)
+        # x.shape -> (batch_size, latent_dim * n_features)
+        # x.shape -> (128, 1024 * 5)
+        x = self.latent_layer(x)
 
-        return mean_log_var
+        # x.shape -> (batch_size, n_features, latent_dim)
+        # x.shape -> (128, 5, 1024)
+        x = x.view(-1, self.n_features, self.latent_dim)
+
+        # feature = (batch_size, latent_dim)
+        # features = Tuple[feature]
+        features = x.unbind(1)
+        features = list(features)
+
+        return features
